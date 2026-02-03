@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>KW_AI Pro • JARVIS Inspired</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<!-- Puter.js - loaded globally -->
+<script src="https://js.puter.com/v2/"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.run/@google/genai"
+  }
+}
+</script>
+
+<style>
+:root {
+  --bg: #020617;
+  --panel: rgba(15, 23, 42, 0.92);
+  --accent: #00eaff;
+  --accent-dark: #0099cc;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --glass: rgba(255, 255, 255, 0.065);
+  --glow: 0 0 18px rgba(0, 234, 255, 0.35);
+  --user-bg: linear-gradient(135deg, rgba(0, 234, 255, 0.28), rgba(0, 234, 255, 0.10));
+  --ai-bg: linear-gradient(135deg, rgba(59, 130, 246, 0.32), rgba(59, 130, 246, 0.14));
+  --listening: #ef4444;
+}
+* { box-sizing: border-box; margin:0; padding:0; }
+body {
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:system-ui, sans-serif;
+  height:100vh;
+  overflow:hidden;
+}
+#app {
+  width:100%;
+  max-width:540px;
+  height:96vh;
+  margin:2vh auto 0;
+  background:var(--panel);
+  border-radius:24px;
+  overflow:hidden;
+  border:1px solid rgba(0,234,255,0.12);
+  box-shadow:0 10px 40px rgba(0,0,0,0.65);
+  display:flex;
+  flex-direction:column;
+  backdrop-filter:blur(8px);
+  opacity:0;
+  transition:opacity 0.8s ease 0.4s;
+}
+#app.loaded { opacity:1; }
+/* SPLASH SCREEN */
+#splash {
+  position:fixed;
+  inset:0;
+  background:#000;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  z-index:9999;
+  color:var(--accent);
+  font-family:'Courier New', monospace;
+  transition:opacity 0.8s ease;
+}
+#splash.hidden { opacity:0; pointer-events:none; }
+.splash-logo {
+  font-size:5.5rem;
+  font-weight:bold;
+  letter-spacing:8px;
+  background:linear-gradient(90deg, #00eaff, #0099cc, #00eaff);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  text-shadow:0 0 40px rgba(0,234,255,0.7);
+  animation:pulseGlow 4s infinite alternate;
+}
+@keyframes pulseGlow {
+  0% { text-shadow:0 0 20px rgba(0,234,255,0.5); }
+  100% { text-shadow:0 0 60px rgba(0,234,255,0.9); }
+}
+.splash-status {
+  margin:30px 0 40px;
+  font-size:1.3rem;
+  color:#0af;
+  opacity:0.9;
+  letter-spacing:2px;
+  white-space:nowrap;
+  overflow:hidden;
+  border-right:3px solid #0af;
+  width:0;
+  animation:typing 3.5s steps(38) forwards, blink 0.8s infinite;
+}
+@keyframes typing {
+  from { width:0; }
+  to { width:38ch; }
+}
+@keyframes blink {
+  50% { border-color:transparent; }
+}
+.particles {
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+}
+.scan-line {
+  position:absolute;
+  top:0;
+  left:0;
+  width:100%;
+  height:2px;
+  background:linear-gradient(90deg, transparent, #00eaff, transparent);
+  box-shadow:0 0 20px #00eaff;
+  animation:scan 6s linear infinite;
+}
+@keyframes scan {
+  0% { transform:translateY(-100%); }
+  100% { transform:translateY(200vh); }
+}
+/* Rest of app styles unchanged */
+header { padding:16px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--glass); background:linear-gradient(to bottom,rgba(0,234,255,0.04),transparent); }
+header h1 { margin:0; font-size:1.45rem; letter-spacing:0.5px; background:linear-gradient(90deg,#fff,var(--accent)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.mode-label { font-size:0.82rem; color:var(--muted); margin-top:3px; }
+#clear { background:none; border:none; color:#f87171; font-size:0.95rem; cursor:pointer; padding:6px 10px; border-radius:8px; transition:background 0.2s; }
+#clear:hover { background:rgba(248,113,113,0.12); }
+.modes { display:flex; gap:10px; padding:12px 20px; overflow-x:auto; background:rgba(0,0,0,0.18); scrollbar-width:none; }
+.modes::-webkit-scrollbar { display:none; }
+.mode { padding:8px 18px; border-radius:999px; font-size:0.88rem; font-weight:500; cursor:pointer; background:var(--glass); color:var(--text); transition:all 0.25s ease; white-space:nowrap; border:1px solid rgba(255,255,255,0.08); }
+.mode:hover { background:rgba(255,255,255,0.1); transform:translateY(-1px); }
+.mode.active { background:var(--accent); color:#000; box-shadow:var(--glow); border-color:var(--accent); }
+#content { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:14px; scroll-behavior:smooth; }
+.message { max-width:82%; padding:12px 18px; border-radius:22px; line-height:1.48; font-size:0.98rem; backdrop-filter:blur(10px); animation:fadeIn 0.35s ease-out; word-break:break-word; position:relative; }
+.user { align-self:flex-end; background:var(--user-bg); border:1px solid rgba(0,234,255,0.4); border-bottom-right-radius:8px; box-shadow:var(--glow); }
+.ai { align-self:flex-start; background:var(--ai-bg); border:1px solid rgba(59,130,246,0.45); border-bottom-left-radius:8px; box-shadow:0 4px 20px rgba(59,130,246,0.2); }
+.copy-btn, .speak-btn { position:absolute; top:8px; background:none; border:none; color:var(--muted); font-size:1rem; cursor:pointer; opacity:0.7; transition:all 0.2s; }
+.copy-btn { right:36px; }
+.speak-btn { right:8px; }
+.copy-btn:hover, .copy-btn.copied, .speak-btn:hover, .speak-btn.speaking { color:var(--accent); opacity:1; }
+.copy-btn.copied { color:#10b981; animation:copiedFlash 1.2s; }
+.speak-btn.speaking { animation:pulse 1.5s infinite; }
+.thinking { align-self:flex-start; display:flex; gap:7px; padding:14px 18px; }
+.dot { width:8px; height:8px; background:var(--accent); border-radius:50%; animation:blink 1.4s infinite ease-in-out; }
+.dot:nth-child(2){animation-delay:0.25s} .dot:nth-child(3){animation-delay:0.5s}
+@keyframes blink{0%,100%{opacity:0.35;transform:scale(0.9)}50%{opacity:1;transform:scale(1.15)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+@keyframes copiedFlash{0%,100%{opacity:1}50%{opacity:0.4}}
+footer { padding:16px 20px; border-top:1px solid var(--glass); background:rgba(0,0,0,0.15); }
+.input-box { display:flex; align-items:center; gap:12px; background:var(--glass); padding:10px 16px; border-radius:999px; border:1px solid rgba(0,234,255,0.18); transition:all 0.25s; }
+.input-box:focus-within { border-color:var(--accent); box-shadow:var(--glow); }
+textarea { flex:1; background:none; border:none; color:white; font-size:1.02rem; outline:none; resize:none; max-height:160px; line-height:1.45; padding:4px 0; }
+button { background:var(--accent); border:none; border-radius:50%; width:44px; height:44px; color:#000; font-size:1.18rem; cursor:pointer; transition:transform 0.15s, box-shadow 0.2s; }
+button:active { transform:scale(0.94); }
+button:hover { box-shadow:var(--glow); }
+.tool-btn, .command-toggle { background:none; border:1px solid rgba(255,255,255,0.2); color:var(--muted); font-size:1.2rem; transition:all 0.2s; }
+.tool-btn.listening, .command-toggle.active { color:var(--listening); border-color:var(--listening); animation:pulse 1.5s infinite; }
+#status { font-size:0.85rem; color:var(--muted); text-align:center; margin-top:6px; min-height:1.2em; }
+.footer-controls { display:flex; align-items:center; justify-content:center; gap:16px; margin-top:8px; font-size:0.9rem; color:var(--muted); }
+.footer-controls label { display:flex; align-items:center; gap:6px; }
+.footer-controls input[type="checkbox"] { accent-color:var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- SPLASH SCREEN -->
+<div id="splash">
+  <div class="particles" id="particles"></div>
+  <div class="scan-line"></div>
+  <div class="splash-logo">KW_AI</div>
+  <div class="splash-status">Initializing KW_AI Pro... JARVIS protocol active</div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+<header>
+  <div>
+    <h1>KW_AI PRO</h1>
+    <div class="mode-label" id="modeLabel">Work / Productivity</div>
+  </div>
+  <button id="clear">Clear</button>
+</header>
+
+<div class="modes">
+  <div class="mode active" data-mode="work">Work</div>
+  <div class="mode" data-mode="personal">Personal</div>
+  <div class="mode" data-mode="business">Business</div>
+  <div class="mode" data-mode="vision">Vision</div>
+</div>
+
+<div id="content"></div>
+
+<footer>
+  <div class="input-box">
+    <textarea id="input" rows="1" placeholder="Ask KW-AI anything..."></textarea>
+    <input type="file" id="imageInput" accept="image/*" hidden>
+    <button class="tool-btn" id="imgBtn" title="Upload image"><i class="fa fa-image"></i></button>
+    <button class="tool-btn" id="voiceBtn" title="Toggle quick dictation"><i class="fa fa-microphone"></i></button>
+    <button id="send"><i class="fa fa-arrow-up"></i></button>
+  </div>
+  <div id="status"></div>
+  <div class="footer-controls">
+    <label>
+      <input type="checkbox" id="autoSpeak" checked>
+      <span>Auto-speak</span>
+    </label>
+    <label>
+      <input type="checkbox" id="voiceCommands">
+      <span>Voice Commands (JARVIS mode)</span>
+    </label>
+  </div>
+</footer>
+</div>
+
+<script type="module">
+import { GoogleGenAI } from "@google/genai";
+const gemini = new GoogleGenAI({ apiKey: "AIzaSyBEJnG_S5ycMcBQOj-43lb9FaffFeZyj2E" });
+
+// -- SPLASH --
+const splash = document.getElementById("splash");
+const app = document.getElementById("app");
+
+if (!localStorage.getItem("splashShown")) {
+  const canvas = document.createElement("canvas");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  canvas.style.position = "absolute";
+  canvas.style.inset = "0";
+  document.getElementById("particles").appendChild(canvas);
+  
+  const ctx = canvas.getContext("2d");
+  const particles = [];
+  for (let i = 0; i < 80; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      radius: Math.random() * 2 + 1,
+      speed: Math.random() * 0.5 + 0.1
+    });
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0, 234, 255, 0.4)";
+      ctx.fill();
+      p.y += p.speed;
+      if (p.y > canvas.height) p.y = 0;
+    });
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  setTimeout(() => {
+    splash.classList.add("hidden");
+    app.classList.add("loaded");
+    localStorage.setItem("splashShown", "true");
+  }, 4500);
+} else {
+  splash.classList.add("hidden");
+  app.classList.add("loaded");
+}
+
+// -- Your original app logic --
+const content = document.getElementById("content");
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("send");
+const imgBtn = document.getElementById("imgBtn");
+const imageInput = document.getElementById("imageInput");
+const modeLabel = document.getElementById("modeLabel");
+const clearBtn = document.getElementById("clear");
+const voiceBtn = document.getElementById("voiceBtn");
+const status = document.getElementById("status");
+const autoSpeak = document.getElementById("autoSpeak");
+const voiceCommandsToggle = document.getElementById("voiceCommands");
+
+let mode = "work";
+const memory = JSON.parse(localStorage.getItem("kw_memory")) || {
+  work: [], personal: [], business: [], vision: []
+};
+const CONFIG = {
+  work:     { label: "Work / Productivity", system: "You are a project execution AI." },
+  personal: { label: "Personal Companion",  system: "You are a supportive personal AI." },
+  business: { label: "Business Consultant", system: "You are a senior business consultant." },
+  vision:   { label: "Vision Assistant",    system: "Identify objects or food." }
+};
+
+function save() { localStorage.setItem("kw_memory", JSON.stringify(memory)); }
+
+function renderMessage(sender, text){
+  const div = document.createElement("div");
+  div.className = `message ${sender}`;
+  div.innerText = text;
+  if (sender === "ai") {
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.innerHTML = '<i class="fa fa-copy"></i>';
+    copyBtn.title = "Copy";
+    copyBtn.onclick = () => {
+      navigator.clipboard.writeText(text).then(() => {
+        copyBtn.classList.add("copied");
+        copyBtn.innerHTML = '<i class="fa fa-check"></i>';
+        setTimeout(() => {
+          copyBtn.classList.remove("copied");
+          copyBtn.innerHTML = '<i class="fa fa-copy"></i>';
+        }, 1800);
+      });
+    };
+    div.appendChild(copyBtn);
+    const speakBtn = document.createElement("button");
+    speakBtn.className = "speak-btn";
+    speakBtn.innerHTML = '<i class="fa fa-volume-up"></i>';
+    speakBtn.title = "Read aloud";
+    speakBtn.onclick = () => speakText(text, speakBtn);
+    div.appendChild(speakBtn);
+  }
+  content.appendChild(div);
+  content.scrollTop = content.scrollHeight;
+  return div;
+}
+
+function renderThinking(){
+  const div = document.createElement("div");
+  div.className = "message ai thinking";
+  div.innerHTML = `<div class="dot"></div><div class="dot"></div><div class="dot"></div>`;
+  content.appendChild(div);
+  content.scrollTop = content.scrollHeight;
+  return div;
+}
+
+function loadMode(){
+  content.innerHTML = "";
+  if(memory[mode].length===0){
+    renderMessage("ai","KW_AI Pro ready. Select a mode and start.");
+    return;
+  }
+  memory[mode].forEach(m=>{
+    renderMessage("user",m.user);
+    renderMessage("ai",m.ai);
+  });
+}
+
+async function sendText() {
+  const userText = input.value.trim();
+  if (!userText) return;
+
+  input.value = "";
+  input.style.height = "auto";
+  renderMessage("user", userText);
+  const thinking = renderThinking();
+
+  try {
+    // Primary: Gemini
+    const res = await gemini.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: CONFIG[mode].system + "\nUser:\n" + userText
+    });
+    thinking.remove();
+    const aiText = res.text || "No response.";
+    renderMessage("ai", aiText);
+    memory[mode].push({user:userText, ai:aiText});
+    save();
+    if (autoSpeak.checked) speakText(aiText);
+  } catch (err) {
+    // Silent fallback: Puter.js (DeepSeek family model via Puter)
+    console.warn("Gemini failed ? falling back to Puter/DeepSeek", err.message);
+    try {
+      const puterResponse = await puter.ai.chat(
+        CONFIG[mode].system + "\n\nUser: " + userText,
+        { model: "deepseek-r1" }  // or "deepseek-chat", "deepseek-coder" etc.
+      );
+      thinking.remove();
+      const aiText = puterResponse || "Backup model response unavailable.";
+      renderMessage("ai", aiText + "\n\n*(backup mode)*");
+      memory[mode].push({user:userText, ai:aiText});
+      save();
+      if (autoSpeak.checked) speakText(aiText);
+    } catch (fallbackErr) {
+      thinking.remove();
+      renderMessage("ai", "Both AI cores are currently unavailable. Please try again later.");
+      console.error("Both Gemini & Puter failed", fallbackErr);
+    }
+  }
+}
+
+sendBtn.onclick = sendText;
+
+document.querySelectorAll(".mode").forEach(m=>{
+  m.onclick=()=>{
+    document.querySelectorAll(".mode").forEach(x=>x.classList.remove("active"));
+    m.classList.add("active");
+    mode = m.dataset.mode;
+    modeLabel.innerText = CONFIG[mode].label;
+    loadMode();
+  }
+});
+
+clearBtn.onclick=()=>{
+  memory[mode]=[];
+  save();
+  loadMode();
+};
+
+loadMode();
+
+// Auto-grow textarea
+input.addEventListener("input", () => {
+  input.style.height = "auto";
+  input.style.height = input.scrollHeight + "px";
+});
+
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendText();
+  }
+});
+
+// TTS (unchanged)
+const synth = window.speechSynthesis;
+let currentUtterance = null;
+function speakText(text, button = null) {
+  if (!synth) return;
+  synth.cancel();
+  if (button) document.querySelectorAll('.speak-btn.speaking').forEach(b => b.classList.remove("speaking"));
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "en-US";
+  utterance.rate = 1.0;
+  utterance.pitch = 1.0;
+  utterance.volume = 1.0;
+  utterance.onstart = () => { if (button) button.classList.add("speaking"); };
+  utterance.onend = () => { if (button) button.classList.remove("speaking"); currentUtterance = null; };
+  utterance.onerror = () => { if (button) button.classList.remove("speaking"); currentUtterance = null; };
+  currentUtterance = utterance;
+  synth.speak(utterance);
+}
+
+// Voice Dictation & Commands (your original code - unchanged)
+// ... paste your voice recognition logic here ...
+
+imgBtn.onclick = () => imageInput.click();
+imageInput.onchange = e => {
+  // Your existing image ? base64 ? vision logic here
+};
+
+</script>
+</body>
+</html>
